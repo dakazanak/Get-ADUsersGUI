@@ -27,6 +27,28 @@ Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
 
+# OU-Klasse mit INotifyPropertyChanged für korrekte WPF-Checkbox-Bindung
+Add-Type @'
+using System;
+using System.ComponentModel;
+public class OUItem : INotifyPropertyChanged {
+    public event PropertyChangedEventHandler PropertyChanged;
+    private bool _visible;
+    public string DN    { get; set; }
+    public string Label { get; set; }
+    public bool Visible {
+        get { return _visible; }
+        set {
+            if (_visible != value) {
+                _visible = value;
+                if (PropertyChanged != null)
+                    PropertyChanged(this, new PropertyChangedEventArgs("Visible"));
+            }
+        }
+    }
+}
+'@
+
 [xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -177,8 +199,10 @@ $ouPanel.ItemsSource = $script:ouItems
 
 function Get-OULabel {
     param([string]$DN)
-    # Ersten OU=-Teil als lesbaren Namen extrahieren
-    if ($DN -match '^OU=([^,]+)') { return $Matches[1] }
+    # Alle OU=-Komponenten extrahieren und von oben nach unten darstellen
+    $parts = [System.Text.RegularExpressions.Regex]::Matches($DN, '(?i)OU=([^,]+)') |
+             ForEach-Object { $_.Groups[1].Value }
+    if ($parts) { return ($parts[-1..-($parts.Count)] -join ' > ') }
     return $DN
 }
 
@@ -267,23 +291,21 @@ function Load-ADUsers {
         # OU-Panel befüllen
         $script:ouItems.Clear()
         foreach ($dn in $liveDNs) {
-            $item = [PSCustomObject]@{
-                DN      = $dn
-                Label   = Get-OULabel -DN $dn
-                Visible = $ouVisibility[$dn]
-            }
+            $item = New-Object OUItem
+            $item.DN      = $dn
+            $item.Label   = Get-OULabel -DN $dn
+            $item.Visible = [bool]$ouVisibility[$dn]
+
             # Checkbox-Änderung: Grid neu filtern + Config speichern
-            $item | Add-Member -MemberType ScriptProperty -Name Visible -Force -Value `
-                { return $this._Visible } `
-                {
-                    param($val)
-                    $this._Visible = $val
-                    $ou = $config.OUs | Where-Object { $_.DN -eq $this.DN }
-                    if ($ou) { $ou.Visible = $val }
+            $item.add_PropertyChanged({
+                param($sender, $e)
+                if ($e.PropertyName -eq 'Visible') {
+                    $ou = $config.OUs | Where-Object { $_.DN -eq $sender.DN }
+                    if ($ou) { $ou.Visible = $sender.Visible }
                     Save-Config
                     Update-GridView
                 }
-            $item | Add-Member -NotePropertyName '_Visible' -NotePropertyValue $ouVisibility[$dn] -Force
+            })
             $script:ouItems.Add($item)
         }
 
