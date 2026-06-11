@@ -107,7 +107,19 @@ public class OUItem : INotifyPropertyChanged {
         <!-- Statusleiste -->
         <StatusBar DockPanel.Dock="Bottom" Background="#f0f0f0" BorderBrush="#dddddd"
                    BorderThickness="0,1,0,0">
+            <StatusBar.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                    </Grid>
+                </ItemsPanelTemplate>
+            </StatusBar.ItemsPanel>
             <TextBlock x:Name="lblStatusBar" Text="Bereit." Margin="4,0"/>
+            <Button x:Name="btnRefresh" Content="Ansicht aktualisieren" Grid.Column="1"
+                    Margin="0,2,6,2" Padding="10,3"/>
         </StatusBar>
         <!-- Hauptbereich: OU-Panel links + DataGrid rechts -->
         <Grid>
@@ -226,6 +238,7 @@ $reader = New-Object System.Xml.XmlNodeReader $xaml
 $window = [Windows.Markup.XamlReader]::Load($reader)
 
 $lblStatusBar = $window.FindName('lblStatusBar')
+$btnRefresh   = $window.FindName('btnRefresh')
 $grid         = $window.FindName('grid')
 $ouPanel      = $window.FindName('ouPanel')
 
@@ -364,6 +377,8 @@ function Load-ADUsers {
         $window.Cursor = $null
     }
 }
+
+$btnRefresh.Add_Click({ Load-ADUsers })
 
 $window.Title = $config.Title
 $window.Add_Loaded({ Load-ADUsers })
