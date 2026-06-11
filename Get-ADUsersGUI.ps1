@@ -123,12 +123,10 @@ function Load-ADUsers {
 
     try {
         $ldapFilter = if ($Filter -eq '') { '*' } else { "*$Filter*" }
+        $adFilter = "SamAccountName -like '$ldapFilter' -or DisplayName -like '$ldapFilter' -or EmailAddress -like '$ldapFilter'"
 
-        $users = Get-ADUser -Filter {
-            (SamAccountName -like $ldapFilter) -or
-            (DisplayName    -like $ldapFilter) -or
-            (EmailAddress   -like $ldapFilter)
-        } -Properties DisplayName, GivenName, Surname, EmailAddress, Department, Title, Enabled, LastLogonDate |
+        $users = Get-ADUser -Filter $adFilter `
+            -Properties DisplayName, GivenName, Surname, EmailAddress, Department, Title, Enabled, LastLogonDate |
             Sort-Object DisplayName
 
         $list = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
