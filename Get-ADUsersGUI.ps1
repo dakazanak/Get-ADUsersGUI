@@ -165,8 +165,8 @@ public class OUItem : INotifyPropertyChanged {
                     <Style TargetType="DataGridRow">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Aktiv}" Value="Nein">
-                                <Setter Property="Background" Value="#eeeeee"/>
-                                <Setter Property="Foreground" Value="#9e9e9e"/>
+                                <Setter Property="Background" Value="#bdbdbd"/>
+                                <Setter Property="Foreground" Value="#424242"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
