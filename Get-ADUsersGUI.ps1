@@ -174,8 +174,8 @@ public class OUItem : INotifyPropertyChanged {
                             <Style TargetType="TextBlock">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding PasswortLaeuftNieAb}" Value="Ja">
-                                        <Setter Property="Background" Value="#c8e6c9"/>
-                                        <Setter Property="Foreground" Value="#1b5e20"/>
+                                        <Setter Property="Background" Value="#ffcdd2"/>
+                                        <Setter Property="Foreground" Value="#b71c1c"/>
                                         <Setter Property="FontWeight" Value="SemiBold"/>
                                     </DataTrigger>
                                 </Style.Triggers>
