@@ -105,22 +105,18 @@ public class OUItem : INotifyPropertyChanged {
     </Window.Resources>
     <DockPanel>
         <!-- Statusleiste -->
-        <StatusBar DockPanel.Dock="Bottom" Background="#f0f0f0" BorderBrush="#dddddd"
-                   BorderThickness="0,1,0,0">
-            <StatusBar.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                    </Grid>
-                </ItemsPanelTemplate>
-            </StatusBar.ItemsPanel>
-            <TextBlock x:Name="lblStatusBar" Text="Bereit." Margin="4,0"/>
-            <Button x:Name="btnRefresh" Content="Ansicht aktualisieren" Grid.Column="1"
-                    Margin="0,2,6,2" Padding="10,3"/>
-        </StatusBar>
+        <Border DockPanel.Dock="Bottom" Background="#f0f0f0" BorderBrush="#dddddd"
+                BorderThickness="0,1,0,0" Padding="4,3">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="lblStatusBar" Text="Bereit." VerticalAlignment="Center"/>
+                <Button x:Name="btnRefresh" Content="Ansicht aktualisieren" Grid.Column="1"
+                        Padding="10,3"/>
+            </Grid>
+        </Border>
         <!-- Hauptbereich: OU-Panel links + DataGrid rechts -->
         <Grid>
             <Grid.ColumnDefinitions>
