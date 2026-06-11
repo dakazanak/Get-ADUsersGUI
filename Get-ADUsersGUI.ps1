@@ -1,5 +1,14 @@
 #Requires -Modules ActiveDirectory
 
+# Konfiguration laden
+$configPath = Join-Path $PSScriptRoot 'config.json'
+if (Test-Path $configPath) {
+    $config = Get-Content $configPath -Raw | ConvertFrom-Json
+} else {
+    Write-Warning "config.json nicht gefunden, verwende Standardwerte."
+    $config = [PSCustomObject]@{ Title = 'AD User Viewer' }
+}
+
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
@@ -179,6 +188,7 @@ $btnExport.Add_Click({
     }
 })
 
+$window.Title = $config.Title
 $window.Add_Loaded({ Load-ADUsers })
 
 $window.ShowDialog() | Out-Null
