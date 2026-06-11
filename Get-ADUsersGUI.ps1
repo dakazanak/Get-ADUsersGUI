@@ -153,16 +153,68 @@ public class OUItem : INotifyPropertyChanged {
                       CanUserResizeColumns="True"
                       CanUserSortColumns="True"
                       ColumnWidth="*">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Aktiv}" Value="Nein">
+                                <Setter Property="Background" Value="#eeeeee"/>
+                                <Setter Property="Foreground" Value="#9e9e9e"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Benutzername"      Binding="{Binding SamAccountName}"    Width="130"/>
-                    <DataGridTextColumn Header="Anzeigename"       Binding="{Binding DisplayName}"       Width="160"/>
-                    <DataGridTextColumn Header="Vorname"           Binding="{Binding GivenName}"         Width="110"/>
-                    <DataGridTextColumn Header="Nachname"          Binding="{Binding Surname}"           Width="110"/>
-                    <DataGridTextColumn Header="Passwort geändert"  Binding="{Binding PasswortGeaendert}" Width="140"/>
-                    <DataGridTextColumn Header="Läuft nie ab"   Binding="{Binding PasswortLaeuftNieAb}" Width="100"/>
-                    <DataGridTextColumn Header="Läuft ab am"    Binding="{Binding PasswortLaeuftAb}"    Width="130"/>
-                    <DataGridTextColumn Header="Aktiv"          Binding="{Binding Aktiv}"               Width="60"/>
-                    <DataGridTextColumn Header="Letzter Login"     Binding="{Binding LetzterLogin}"      Width="130"/>
+                    <DataGridTextColumn Header="Benutzername"     Binding="{Binding SamAccountName}"    Width="130"/>
+                    <DataGridTextColumn Header="Anzeigename"      Binding="{Binding DisplayName}"       Width="160"/>
+                    <DataGridTextColumn Header="Vorname"          Binding="{Binding GivenName}"         Width="110"/>
+                    <DataGridTextColumn Header="Nachname"         Binding="{Binding Surname}"           Width="110"/>
+                    <DataGridTextColumn Header="Passwort geändert" Binding="{Binding PasswortGeaendert}" Width="140"/>
+                    <DataGridTextColumn Header="Läuft nie ab"     Binding="{Binding PasswortLaeuftNieAb}" Width="100">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PasswortLaeuftNieAb}" Value="Ja">
+                                        <Setter Property="Background" Value="#c8e6c9"/>
+                                        <Setter Property="Foreground" Value="#1b5e20"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Läuft ab am"      Binding="{Binding PasswortLaeuftAb}"  Width="130">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PasswortStatus}" Value="Abgelaufen">
+                                        <Setter Property="Background" Value="#ffcdd2"/>
+                                        <Setter Property="Foreground" Value="#b71c1c"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding PasswortStatus}" Value="BaldAbgelaufen">
+                                        <Setter Property="Background" Value="#fff9c4"/>
+                                        <Setter Property="Foreground" Value="#e65100"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Aktiv"            Binding="{Binding Aktiv}"             Width="60"/>
+                    <DataGridTextColumn Header="Gesperrt"         Binding="{Binding Gesperrt}"          Width="80">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Gesperrt}" Value="Ja">
+                                        <Setter Property="Background" Value="#ffcdd2"/>
+                                        <Setter Property="Foreground" Value="#b71c1c"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Letzter Login"    Binding="{Binding LetzterLogin}"      Width="130"/>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>
@@ -239,7 +291,7 @@ function Load-ADUsers {
         $maxAge = (Get-ADDefaultDomainPasswordPolicy).MaxPasswordAge
 
         $adUsers = Get-ADUser -Filter * `
-            -Properties DisplayName, GivenName, Surname, Enabled, LastLogonDate, PasswordLastSet, PasswordNeverExpires
+            -Properties DisplayName, GivenName, Surname, Enabled, LastLogonDate, PasswordLastSet, PasswordNeverExpires, LockedOut
 
         # OU je User ermitteln (direkt übergeordnete OU aus DN)
         $script:allUsers = $adUsers | ForEach-Object {
@@ -247,9 +299,14 @@ function Load-ADUsers {
             $ou = ($dn -split ',', 2)[1]
 
             if ($_.PasswordNeverExpires -or -not $_.PasswordLastSet -or $maxAge.TotalDays -eq 0) {
-                $ablauf = 'Nie'
+                $ablauf  = 'Nie'
+                $pwStatus = 'NieAbgelaufend'
             } else {
-                $ablauf = ($_.PasswordLastSet + $maxAge).ToString('dd.MM.yyyy HH:mm')
+                $ablaufDt = $_.PasswordLastSet + $maxAge
+                $ablauf   = $ablaufDt.ToString('dd.MM.yyyy HH:mm')
+                $pwStatus = if ($ablaufDt -lt (Get-Date)) { 'Abgelaufen' }
+                            elseif ($ablaufDt -lt (Get-Date).AddDays(14)) { 'BaldAbgelaufen' }
+                            else { 'OK' }
             }
 
             [PSCustomObject]@{
@@ -258,10 +315,12 @@ function Load-ADUsers {
                 GivenName           = $_.GivenName
                 Surname             = $_.Surname
                 Aktiv               = if ($_.Enabled) { 'Ja' } else { 'Nein' }
+                Gesperrt            = if ($_.LockedOut) { 'Ja' } else { 'Nein' }
                 LetzterLogin        = if ($_.LastLogonDate) { $_.LastLogonDate.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
                 PasswortGeaendert   = if ($_.PasswordLastSet) { $_.PasswordLastSet.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
                 PasswortLaeuftNieAb = if ($_.PasswordNeverExpires) { 'Ja' } else { 'Nein' }
                 PasswortLaeuftAb    = $ablauf
+                PasswortStatus      = $pwStatus
                 OU                  = $ou
             }
         }
