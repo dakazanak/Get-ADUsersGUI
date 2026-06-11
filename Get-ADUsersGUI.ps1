@@ -93,9 +93,7 @@ Add-Type -AssemblyName WindowsBase
                 <DataGridTextColumn Header="Anzeigename"   Binding="{Binding DisplayName}"    Width="160"/>
                 <DataGridTextColumn Header="Vorname"       Binding="{Binding GivenName}"      Width="120"/>
                 <DataGridTextColumn Header="Nachname"      Binding="{Binding Surname}"        Width="120"/>
-                <DataGridTextColumn Header="E-Mail"        Binding="{Binding EmailAddress}"   Width="200"/>
-                <DataGridTextColumn Header="Abteilung"     Binding="{Binding Department}"     Width="150"/>
-                <DataGridTextColumn Header="Position"      Binding="{Binding Title}"          Width="150"/>
+                <DataGridTextColumn Header="Passwort geändert" Binding="{Binding PasswortGeaendert}" Width="150"/>
                 <DataGridTextColumn Header="Aktiv"         Binding="{Binding Aktiv}"          Width="60"/>
                 <DataGridTextColumn Header="Letzter Login" Binding="{Binding LetzterLogin}"   Width="130"/>
             </DataGrid.Columns>
@@ -123,13 +121,12 @@ function Load-ADUsers {
 
     try {
         $users = Get-ADUser -Filter * `
-            -Properties DisplayName, GivenName, Surname, EmailAddress, Department, Title, Enabled, LastLogonDate
+            -Properties DisplayName, GivenName, Surname, Enabled, LastLogonDate, PasswordLastSet
 
         if ($Filter -ne '') {
             $users = $users | Where-Object {
                 $_.SamAccountName -like "*$Filter*" -or
-                $_.DisplayName    -like "*$Filter*" -or
-                $_.EmailAddress   -like "*$Filter*"
+                $_.DisplayName    -like "*$Filter*"
             }
         }
 
@@ -139,15 +136,13 @@ function Load-ADUsers {
 
         foreach ($u in $users) {
             $list.Add([PSCustomObject]@{
-                SamAccountName = $u.SamAccountName
-                DisplayName    = $u.DisplayName
-                GivenName      = $u.GivenName
-                Surname        = $u.Surname
-                EmailAddress   = $u.EmailAddress
-                Department     = $u.Department
-                Title          = $u.Title
-                Aktiv          = if ($u.Enabled) { 'Ja' } else { 'Nein' }
-                LetzterLogin   = if ($u.LastLogonDate) { $u.LastLogonDate.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
+                SamAccountName    = $u.SamAccountName
+                DisplayName       = $u.DisplayName
+                GivenName         = $u.GivenName
+                Surname           = $u.Surname
+                Aktiv             = if ($u.Enabled) { 'Ja' } else { 'Nein' }
+                LetzterLogin      = if ($u.LastLogonDate) { $u.LastLogonDate.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
+                PasswortGeaendert = if ($u.PasswordLastSet) { $u.PasswordLastSet.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
             })
         }
 
