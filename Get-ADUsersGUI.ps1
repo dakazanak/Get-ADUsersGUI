@@ -28,7 +28,7 @@ Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
 
 # OU-Klasse mit INotifyPropertyChanged für korrekte WPF-Checkbox-Bindung
-Add-Type @'
+if (-not ([System.Management.Automation.PSTypeName]'OUItem').Type) { Add-Type @'
 using System;
 using System.ComponentModel;
 public class OUItem : INotifyPropertyChanged {
@@ -47,7 +47,7 @@ public class OUItem : INotifyPropertyChanged {
         }
     }
 }
-'@
+'@ }
 
 [xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
