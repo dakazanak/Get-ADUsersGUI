@@ -104,18 +104,6 @@ public class OUItem : INotifyPropertyChanged {
         </Style>
     </Window.Resources>
     <DockPanel>
-        <!-- Toolbar -->
-        <Border DockPanel.Dock="Top" Background="#f0f0f0" BorderBrush="#dddddd"
-                BorderThickness="0,0,0,1" Padding="10,8">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Label Content="Suche:" VerticalAlignment="Center" Padding="0,0,6,0"/>
-                <TextBox x:Name="txtSearch" Width="250" VerticalAlignment="Center"/>
-                <Button x:Name="btnLoad" Content="Laden" Margin="8,0,0,0"/>
-                <Button x:Name="btnExport" Content="CSV Export" Margin="6,0,0,0" IsEnabled="False"/>
-                <TextBlock x:Name="lblStatus" VerticalAlignment="Center" Margin="12,0,0,0"
-                           Foreground="#666666"/>
-            </StackPanel>
-        </Border>
         <!-- Statusleiste -->
         <StatusBar DockPanel.Dock="Bottom" Background="#f0f0f0" BorderBrush="#dddddd"
                    BorderThickness="0,1,0,0">
@@ -171,8 +159,9 @@ public class OUItem : INotifyPropertyChanged {
                     <DataGridTextColumn Header="Vorname"           Binding="{Binding GivenName}"         Width="110"/>
                     <DataGridTextColumn Header="Nachname"          Binding="{Binding Surname}"           Width="110"/>
                     <DataGridTextColumn Header="Passwort geändert"  Binding="{Binding PasswortGeaendert}" Width="140"/>
-                    <DataGridTextColumn Header="Läuft nie ab"      Binding="{Binding PasswortLaeuftNieAb}" Width="100"/>
-                    <DataGridTextColumn Header="Aktiv"             Binding="{Binding Aktiv}"             Width="60"/>
+                    <DataGridTextColumn Header="Läuft nie ab"   Binding="{Binding PasswortLaeuftNieAb}" Width="100"/>
+                    <DataGridTextColumn Header="Läuft ab am"    Binding="{Binding PasswortLaeuftAb}"    Width="130"/>
+                    <DataGridTextColumn Header="Aktiv"          Binding="{Binding Aktiv}"               Width="60"/>
                     <DataGridTextColumn Header="Letzter Login"     Binding="{Binding LetzterLogin}"      Width="130"/>
                 </DataGrid.Columns>
             </DataGrid>
@@ -184,10 +173,6 @@ public class OUItem : INotifyPropertyChanged {
 $reader = New-Object System.Xml.XmlNodeReader $xaml
 $window = [Windows.Markup.XamlReader]::Load($reader)
 
-$txtSearch    = $window.FindName('txtSearch')
-$btnLoad      = $window.FindName('btnLoad')
-$btnExport    = $window.FindName('btnExport')
-$lblStatus    = $window.FindName('lblStatus')
 $lblStatusBar = $window.FindName('lblStatusBar')
 $grid         = $window.FindName('grid')
 $ouPanel      = $window.FindName('ouPanel')
@@ -236,51 +221,48 @@ function Sync-OUsWithConfig {
 }
 
 function Update-GridView {
-    $searchText = $txtSearch.Text.Trim()
     $visibleDNs = $script:ouItems | Where-Object { $_.Visible } | ForEach-Object { $_.DN }
-
-    $filtered = $script:allUsers | Where-Object { $_.OU -in $visibleDNs }
-
-    if ($searchText -ne '') {
-        $filtered = $filtered | Where-Object {
-            $_.SamAccountName -like "*$searchText*" -or
-            $_.DisplayName    -like "*$searchText*"
-        }
-    }
+    $filtered   = $script:allUsers | Where-Object { $_.OU -in $visibleDNs }
 
     $list = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
-    foreach ($u in $filtered | Sort-Object DisplayName) {
-        $list.Add($u)
-    }
+    foreach ($u in $filtered | Sort-Object DisplayName) { $list.Add($u) }
 
     $grid.ItemsSource = $list
     $lblStatusBar.Text = "$($list.Count) Benutzer angezeigt."
-    $btnExport.IsEnabled = ($list.Count -gt 0)
 }
 
 function Load-ADUsers {
-    $lblStatus.Text = 'Lade AD-Benutzer...'
     $window.Cursor = [System.Windows.Input.Cursors]::Wait
     $window.Dispatcher.Invoke([action]{}, 'Background')
 
     try {
+        $maxAge = (Get-ADDefaultDomainPasswordPolicy).MaxPasswordAge
+
         $adUsers = Get-ADUser -Filter * `
             -Properties DisplayName, GivenName, Surname, Enabled, LastLogonDate, PasswordLastSet, PasswordNeverExpires
 
         # OU je User ermitteln (direkt übergeordnete OU aus DN)
         $script:allUsers = $adUsers | ForEach-Object {
             $dn = $_.DistinguishedName
-            $ou = ($dn -split ',', 2)[1]  # alles nach dem ersten CN=...
+            $ou = ($dn -split ',', 2)[1]
+
+            if ($_.PasswordNeverExpires -or -not $_.PasswordLastSet -or $maxAge.TotalDays -eq 0) {
+                $ablauf = 'Nie'
+            } else {
+                $ablauf = ($_.PasswordLastSet + $maxAge).ToString('dd.MM.yyyy HH:mm')
+            }
+
             [PSCustomObject]@{
-                SamAccountName    = $_.SamAccountName
-                DisplayName       = $_.DisplayName
-                GivenName         = $_.GivenName
-                Surname           = $_.Surname
-                Aktiv             = if ($_.Enabled) { 'Ja' } else { 'Nein' }
-                LetzterLogin      = if ($_.LastLogonDate) { $_.LastLogonDate.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
-                PasswortGeaendert    = if ($_.PasswordLastSet) { $_.PasswordLastSet.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
+                SamAccountName      = $_.SamAccountName
+                DisplayName         = $_.DisplayName
+                GivenName           = $_.GivenName
+                Surname             = $_.Surname
+                Aktiv               = if ($_.Enabled) { 'Ja' } else { 'Nein' }
+                LetzterLogin        = if ($_.LastLogonDate) { $_.LastLogonDate.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
+                PasswortGeaendert   = if ($_.PasswordLastSet) { $_.PasswordLastSet.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
                 PasswortLaeuftNieAb = if ($_.PasswordNeverExpires) { 'Ja' } else { 'Nein' }
-                OU                = $ou
+                PasswortLaeuftAb    = $ablauf
+                OU                  = $ou
             }
         }
 
@@ -311,7 +293,6 @@ function Load-ADUsers {
             $script:ouItems.Add($item)
         }
 
-        $lblStatus.Text = ''
         Update-GridView
     }
     catch {
@@ -319,28 +300,11 @@ function Load-ADUsers {
             "Fehler beim Laden der AD-Benutzer:`n$($_.Exception.Message)",
             'Fehler', 'OK', 'Error')
         $lblStatusBar.Text = 'Fehler beim Laden.'
-        $lblStatus.Text = ''
     }
     finally {
         $window.Cursor = $null
     }
 }
-
-$btnLoad.Add_Click({ Load-ADUsers })
-
-$txtSearch.Add_KeyDown({
-    if ($_.Key -eq 'Return') { Update-GridView }
-})
-
-$btnExport.Add_Click({
-    $dlg = New-Object Microsoft.Win32.SaveFileDialog
-    $dlg.Filter = 'CSV-Datei (*.csv)|*.csv'
-    $dlg.FileName = "AD-Benutzer_$(Get-Date -Format 'yyyyMMdd_HHmm').csv"
-    if ($dlg.ShowDialog()) {
-        $grid.ItemsSource | Export-Csv -Path $dlg.FileName -Delimiter ';' -NoTypeInformation -Encoding UTF8
-        $lblStatusBar.Text = "Exportiert: $($dlg.FileName)"
-    }
-})
 
 $window.Title = $config.Title
 $window.Add_Loaded({ Load-ADUsers })
