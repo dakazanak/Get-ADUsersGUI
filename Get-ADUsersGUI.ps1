@@ -19,6 +19,18 @@ if (-not $config.PSObject.Properties['OUs'] -or $null -eq $config.OUs) {
     $config | Add-Member -NotePropertyName 'OUs' -NotePropertyValue @() -Force
 }
 
+# --- Desktop-Verknüpfung prüfen und ggf. anlegen ---
+$shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AD User Viewer.lnk'
+if (-not (Test-Path $shortcutPath)) {
+    $wsh    = New-Object -ComObject WScript.Shell
+    $lnk    = $wsh.CreateShortcut($shortcutPath)
+    $lnk.TargetPath       = 'pwsh.exe'
+    $lnk.Arguments        = '-NoProfile -WindowStyle Hidden -Command "irm ''https://raw.githubusercontent.com/dakazanak/Get-ADUsersGUI/master/Get-ADUsersGUI.ps1'' | iex"'
+    $lnk.Description      = 'AD User Viewer'
+    $lnk.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')
+    $lnk.Save()
+}
+
 function Save-Config {
     $config | ConvertTo-Json -Depth 5 | Set-Content -Path $configPath -Encoding UTF8
 }
