@@ -1,12 +1,19 @@
 #Requires -Modules ActiveDirectory
 
-# Konfiguration laden
+# --- Konfiguration laden ---
 $configPath = Join-Path $PSScriptRoot 'config.json'
 if (Test-Path $configPath) {
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
 } else {
     Write-Warning "config.json nicht gefunden, verwende Standardwerte."
-    $config = [PSCustomObject]@{ Title = 'AD User Viewer' }
+    $config = [PSCustomObject]@{ Title = 'AD User Viewer'; OUs = @() }
+}
+if (-not $config.PSObject.Properties['OUs']) {
+    $config | Add-Member -NotePropertyName 'OUs' -NotePropertyValue @()
+}
+
+function Save-Config {
+    $config | ConvertTo-Json -Depth 5 | Set-Content -Path $configPath -Encoding UTF8
 }
 
 Add-Type -AssemblyName PresentationFramework
@@ -16,7 +23,7 @@ Add-Type -AssemblyName WindowsBase
 [xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AD User Viewer" Height="620" Width="1000" MinHeight="400" MinWidth="700"
+        Title="AD User Viewer" Height="620" Width="1150" MinHeight="400" MinWidth="750"
         WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13">
     <Window.Resources>
         <Style TargetType="Button">
@@ -85,28 +92,61 @@ Add-Type -AssemblyName WindowsBase
                    BorderThickness="0,1,0,0">
             <TextBlock x:Name="lblStatusBar" Text="Bereit." Margin="4,0"/>
         </StatusBar>
-        <!-- DataGrid -->
-        <DataGrid x:Name="grid" Margin="10"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  SelectionMode="Single"
-                  SelectionUnit="FullRow"
-                  CanUserAddRows="False"
-                  CanUserDeleteRows="False"
-                  CanUserReorderColumns="True"
-                  CanUserResizeColumns="True"
-                  CanUserSortColumns="True"
-                  ColumnWidth="*">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Benutzername"  Binding="{Binding SamAccountName}" Width="130"/>
-                <DataGridTextColumn Header="Anzeigename"   Binding="{Binding DisplayName}"    Width="160"/>
-                <DataGridTextColumn Header="Vorname"       Binding="{Binding GivenName}"      Width="120"/>
-                <DataGridTextColumn Header="Nachname"      Binding="{Binding Surname}"        Width="120"/>
-                <DataGridTextColumn Header="Passwort geändert" Binding="{Binding PasswortGeaendert}" Width="150"/>
-                <DataGridTextColumn Header="Aktiv"         Binding="{Binding Aktiv}"          Width="60"/>
-                <DataGridTextColumn Header="Letzter Login" Binding="{Binding LetzterLogin}"   Width="130"/>
-            </DataGrid.Columns>
-        </DataGrid>
+        <!-- Hauptbereich: OU-Panel links + DataGrid rechts -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" MinWidth="150"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <!-- OU-Panel -->
+            <Border Grid.Column="0" BorderBrush="#dddddd" BorderThickness="0,0,1,0"
+                    Background="#fafafa">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="#336699" Padding="8,6">
+                        <TextBlock Text="Organisationseinheiten" Foreground="White"
+                                   FontWeight="Bold" TextWrapping="Wrap"/>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="ouPanel" Margin="6,6,6,6">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding Label}"
+                                              IsChecked="{Binding Visible, Mode=TwoWay}"
+                                              Margin="2,3" ToolTip="{Binding DN}"
+                                              x:Name="ouCheckBox"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="#dddddd"/>
+            <!-- DataGrid -->
+            <DataGrid x:Name="grid" Grid.Column="2" Margin="10"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      SelectionMode="Single"
+                      SelectionUnit="FullRow"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserReorderColumns="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      ColumnWidth="*">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Benutzername"      Binding="{Binding SamAccountName}"    Width="130"/>
+                    <DataGridTextColumn Header="Anzeigename"       Binding="{Binding DisplayName}"       Width="160"/>
+                    <DataGridTextColumn Header="Vorname"           Binding="{Binding GivenName}"         Width="110"/>
+                    <DataGridTextColumn Header="Nachname"          Binding="{Binding Surname}"           Width="110"/>
+                    <DataGridTextColumn Header="Passwort geändert" Binding="{Binding PasswortGeaendert}" Width="140"/>
+                    <DataGridTextColumn Header="Aktiv"             Binding="{Binding Aktiv}"             Width="60"/>
+                    <DataGridTextColumn Header="Letzter Login"     Binding="{Binding LetzterLogin}"      Width="130"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Grid>
     </DockPanel>
 </Window>
 '@
@@ -114,51 +154,134 @@ Add-Type -AssemblyName WindowsBase
 $reader = New-Object System.Xml.XmlNodeReader $xaml
 $window = [Windows.Markup.XamlReader]::Load($reader)
 
-$txtSearch   = $window.FindName('txtSearch')
-$btnLoad     = $window.FindName('btnLoad')
-$btnExport   = $window.FindName('btnExport')
-$lblStatus   = $window.FindName('lblStatus')
+$txtSearch    = $window.FindName('txtSearch')
+$btnLoad      = $window.FindName('btnLoad')
+$btnExport    = $window.FindName('btnExport')
+$lblStatus    = $window.FindName('lblStatus')
 $lblStatusBar = $window.FindName('lblStatusBar')
-$grid        = $window.FindName('grid')
+$grid         = $window.FindName('grid')
+$ouPanel      = $window.FindName('ouPanel')
+
+# Alle AD-User (gecacht, damit OU-Filter ohne AD-Abfrage arbeitet)
+$script:allUsers = @()
+# OU-Objekte für Binding
+$script:ouItems = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+$ouPanel.ItemsSource = $script:ouItems
+
+function Get-OULabel {
+    param([string]$DN)
+    # Ersten OU=-Teil als lesbaren Namen extrahieren
+    if ($DN -match '^OU=([^,]+)') { return $Matches[1] }
+    return $DN
+}
+
+function Sync-OUsWithConfig {
+    param([string[]]$LiveDNs)
+
+    $configOUs = @{}
+    foreach ($entry in $config.OUs) {
+        $configOUs[$entry.DN] = $entry.Visible
+    }
+
+    # Neue OUs (nicht in Config) → sichtbar setzen
+    foreach ($dn in $LiveDNs) {
+        if (-not $configOUs.ContainsKey($dn)) {
+            $configOUs[$dn] = $true
+        }
+    }
+
+    # Veraltete OUs (nicht mehr im AD) aus Config entfernen
+    $toRemove = $configOUs.Keys | Where-Object { $_ -notin $LiveDNs }
+    foreach ($dn in $toRemove) { $configOUs.Remove($dn) }
+
+    # Config-OUs aktualisieren
+    $config.OUs = @($LiveDNs | ForEach-Object {
+        [PSCustomObject]@{ DN = $_; Visible = $configOUs[$_] }
+    })
+    Save-Config
+
+    return $configOUs
+}
+
+function Update-GridView {
+    $searchText = $txtSearch.Text.Trim()
+    $visibleDNs = $script:ouItems | Where-Object { $_.Visible } | ForEach-Object { $_.DN }
+
+    $filtered = $script:allUsers | Where-Object { $_.OU -in $visibleDNs }
+
+    if ($searchText -ne '') {
+        $filtered = $filtered | Where-Object {
+            $_.SamAccountName -like "*$searchText*" -or
+            $_.DisplayName    -like "*$searchText*"
+        }
+    }
+
+    $list = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($u in $filtered | Sort-Object DisplayName) {
+        $list.Add($u)
+    }
+
+    $grid.ItemsSource = $list
+    $lblStatusBar.Text = "$($list.Count) Benutzer angezeigt."
+    $btnExport.IsEnabled = ($list.Count -gt 0)
+}
 
 function Load-ADUsers {
-    param([string]$Filter = '*')
-
     $lblStatus.Text = 'Lade AD-Benutzer...'
     $window.Cursor = [System.Windows.Input.Cursors]::Wait
     $window.Dispatcher.Invoke([action]{}, 'Background')
 
     try {
-        $users = Get-ADUser -Filter * `
+        $adUsers = Get-ADUser -Filter * `
             -Properties DisplayName, GivenName, Surname, Enabled, LastLogonDate, PasswordLastSet
 
-        if ($Filter -ne '') {
-            $users = $users | Where-Object {
-                $_.SamAccountName -like "*$Filter*" -or
-                $_.DisplayName    -like "*$Filter*"
+        # OU je User ermitteln (direkt übergeordnete OU aus DN)
+        $script:allUsers = $adUsers | ForEach-Object {
+            $dn = $_.DistinguishedName
+            $ou = ($dn -split ',', 2)[1]  # alles nach dem ersten CN=...
+            [PSCustomObject]@{
+                SamAccountName    = $_.SamAccountName
+                DisplayName       = $_.DisplayName
+                GivenName         = $_.GivenName
+                Surname           = $_.Surname
+                Aktiv             = if ($_.Enabled) { 'Ja' } else { 'Nein' }
+                LetzterLogin      = if ($_.LastLogonDate) { $_.LastLogonDate.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
+                PasswortGeaendert = if ($_.PasswordLastSet) { $_.PasswordLastSet.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
+                OU                = $ou
             }
         }
 
-        $users = $users | Sort-Object DisplayName
+        # Eindeutige OUs ermitteln
+        $liveDNs = $script:allUsers | ForEach-Object { $_.OU } | Sort-Object -Unique
 
-        $list = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+        # Config abgleichen
+        $ouVisibility = Sync-OUsWithConfig -LiveDNs $liveDNs
 
-        foreach ($u in $users) {
-            $list.Add([PSCustomObject]@{
-                SamAccountName    = $u.SamAccountName
-                DisplayName       = $u.DisplayName
-                GivenName         = $u.GivenName
-                Surname           = $u.Surname
-                Aktiv             = if ($u.Enabled) { 'Ja' } else { 'Nein' }
-                LetzterLogin      = if ($u.LastLogonDate) { $u.LastLogonDate.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
-                PasswortGeaendert = if ($u.PasswordLastSet) { $u.PasswordLastSet.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
-            })
+        # OU-Panel befüllen
+        $script:ouItems.Clear()
+        foreach ($dn in $liveDNs) {
+            $item = [PSCustomObject]@{
+                DN      = $dn
+                Label   = Get-OULabel -DN $dn
+                Visible = $ouVisibility[$dn]
+            }
+            # Checkbox-Änderung: Grid neu filtern + Config speichern
+            $item | Add-Member -MemberType ScriptProperty -Name Visible -Force -Value `
+                { return $this._Visible } `
+                {
+                    param($val)
+                    $this._Visible = $val
+                    $ou = $config.OUs | Where-Object { $_.DN -eq $this.DN }
+                    if ($ou) { $ou.Visible = $val }
+                    Save-Config
+                    Update-GridView
+                }
+            $item | Add-Member -NotePropertyName '_Visible' -NotePropertyValue $ouVisibility[$dn] -Force
+            $script:ouItems.Add($item)
         }
 
-        $grid.ItemsSource = $list
-        $lblStatusBar.Text = "$($list.Count) Benutzer geladen."
         $lblStatus.Text = ''
-        $btnExport.IsEnabled = ($list.Count -gt 0)
+        Update-GridView
     }
     catch {
         [System.Windows.MessageBox]::Show(
@@ -172,10 +295,10 @@ function Load-ADUsers {
     }
 }
 
-$btnLoad.Add_Click({ Load-ADUsers -Filter $txtSearch.Text.Trim() })
+$btnLoad.Add_Click({ Load-ADUsers })
 
 $txtSearch.Add_KeyDown({
-    if ($_.Key -eq 'Return') { Load-ADUsers -Filter $txtSearch.Text.Trim() }
+    if ($_.Key -eq 'Return') { Update-GridView }
 })
 
 $btnExport.Add_Click({
