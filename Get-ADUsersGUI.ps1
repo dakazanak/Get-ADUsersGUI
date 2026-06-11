@@ -170,7 +170,8 @@ public class OUItem : INotifyPropertyChanged {
                     <DataGridTextColumn Header="Anzeigename"       Binding="{Binding DisplayName}"       Width="160"/>
                     <DataGridTextColumn Header="Vorname"           Binding="{Binding GivenName}"         Width="110"/>
                     <DataGridTextColumn Header="Nachname"          Binding="{Binding Surname}"           Width="110"/>
-                    <DataGridTextColumn Header="Passwort geändert" Binding="{Binding PasswortGeaendert}" Width="140"/>
+                    <DataGridTextColumn Header="Passwort geändert"  Binding="{Binding PasswortGeaendert}" Width="140"/>
+                    <DataGridTextColumn Header="Läuft nie ab"      Binding="{Binding PasswortLaeuftNieAb}" Width="100"/>
                     <DataGridTextColumn Header="Aktiv"             Binding="{Binding Aktiv}"             Width="60"/>
                     <DataGridTextColumn Header="Letzter Login"     Binding="{Binding LetzterLogin}"      Width="130"/>
                 </DataGrid.Columns>
@@ -264,7 +265,7 @@ function Load-ADUsers {
 
     try {
         $adUsers = Get-ADUser -Filter * `
-            -Properties DisplayName, GivenName, Surname, Enabled, LastLogonDate, PasswordLastSet
+            -Properties DisplayName, GivenName, Surname, Enabled, LastLogonDate, PasswordLastSet, PasswordNeverExpires
 
         # OU je User ermitteln (direkt übergeordnete OU aus DN)
         $script:allUsers = $adUsers | ForEach-Object {
@@ -277,7 +278,8 @@ function Load-ADUsers {
                 Surname           = $_.Surname
                 Aktiv             = if ($_.Enabled) { 'Ja' } else { 'Nein' }
                 LetzterLogin      = if ($_.LastLogonDate) { $_.LastLogonDate.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
-                PasswortGeaendert = if ($_.PasswordLastSet) { $_.PasswordLastSet.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
+                PasswortGeaendert    = if ($_.PasswordLastSet) { $_.PasswordLastSet.ToString('dd.MM.yyyy HH:mm') } else { 'Nie' }
+                PasswortLaeuftNieAb = if ($_.PasswordNeverExpires) { 'Ja' } else { 'Nein' }
                 OU                = $ou
             }
         }
