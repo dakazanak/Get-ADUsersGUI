@@ -19,19 +19,19 @@ if (-not $config.PSObject.Properties['OUs'] -or $null -eq $config.OUs) {
     $config | Add-Member -NotePropertyName 'OUs' -NotePropertyValue @() -Force
 }
 
-# --- Desktop-Verknüpfung prüfen und ggf. anlegen ---
-$shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AD User Viewer.lnk'
-if (-not (Test-Path $shortcutPath)) {
-    # Exe des aktuell laufenden PS-Prozesses verwenden (PS5 oder PS7)
-    $pwshPath = (Get-Process -Id $PID).Path
-
-    $wsh    = New-Object -ComObject WScript.Shell
-    $lnk    = $wsh.CreateShortcut($shortcutPath)
-    $lnk.TargetPath       = $pwshPath
-    $lnk.Arguments        = '-NoProfile -WindowStyle Hidden -Command "irm ''https://raw.githubusercontent.com/dakazanak/Get-ADUsersGUI/master/Get-ADUsersGUI.ps1'' | iex"'
-    $lnk.Description      = 'AD User Viewer'
-    $lnk.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')
-    $lnk.Save()
+# --- Desktop-Verknüpfung prüfen und ggf. anlegen (nur Windows) ---
+if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    $shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AD User Viewer.lnk'
+    if (-not (Test-Path $shortcutPath)) {
+        $pwshPath = (Get-Process -Id $PID).Path
+        $wsh      = New-Object -ComObject WScript.Shell
+        $lnk      = $wsh.CreateShortcut($shortcutPath)
+        $lnk.TargetPath       = $pwshPath
+        $lnk.Arguments        = '-NoProfile -WindowStyle Hidden -Command "irm ''https://raw.githubusercontent.com/dakazanak/Get-ADUsersGUI/master/Get-ADUsersGUI.ps1'' | iex"'
+        $lnk.Description      = 'AD User Viewer'
+        $lnk.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')
+        $lnk.Save()
+    }
 }
 
 function Save-Config {
