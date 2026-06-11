@@ -22,9 +22,13 @@ if (-not $config.PSObject.Properties['OUs'] -or $null -eq $config.OUs) {
 # --- Desktop-Verknüpfung prüfen und ggf. anlegen ---
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AD User Viewer.lnk'
 if (-not (Test-Path $shortcutPath)) {
+    # PS7 bevorzugen, Fallback auf PS5
+    $pwshPath = (Get-Command pwsh.exe -ErrorAction SilentlyContinue)?.Source
+    if (-not $pwshPath) { $pwshPath = (Get-Command powershell.exe).Source }
+
     $wsh    = New-Object -ComObject WScript.Shell
     $lnk    = $wsh.CreateShortcut($shortcutPath)
-    $lnk.TargetPath       = 'pwsh.exe'
+    $lnk.TargetPath       = $pwshPath
     $lnk.Arguments        = '-NoProfile -WindowStyle Hidden -Command "irm ''https://raw.githubusercontent.com/dakazanak/Get-ADUsersGUI/master/Get-ADUsersGUI.ps1'' | iex"'
     $lnk.Description      = 'AD User Viewer'
     $lnk.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')
