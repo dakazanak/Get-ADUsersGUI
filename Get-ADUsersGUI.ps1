@@ -1,15 +1,22 @@
 #Requires -Modules ActiveDirectory
 
 # --- Konfiguration laden ---
-$configPath = Join-Path $PSScriptRoot 'config.json'
+$scriptDir  = if ($PSScriptRoot) { $PSScriptRoot } else { $env:USERPROFILE }
+$configPath = Join-Path $scriptDir 'config.json'
+
 if (Test-Path $configPath) {
-    $config = Get-Content $configPath -Raw | ConvertFrom-Json
-} else {
-    Write-Warning "config.json nicht gefunden, verwende Standardwerte."
+    try   { $config = Get-Content $configPath -Raw | ConvertFrom-Json }
+    catch { $config = $null }
+}
+
+if (-not $config) {
     $config = [PSCustomObject]@{ Title = 'AD User Viewer'; OUs = @() }
 }
-if (-not $config.PSObject.Properties['OUs']) {
-    $config | Add-Member -NotePropertyName 'OUs' -NotePropertyValue @()
+if (-not $config.PSObject.Properties['Title']) {
+    $config | Add-Member -NotePropertyName 'Title' -NotePropertyValue 'AD User Viewer'
+}
+if (-not $config.PSObject.Properties['OUs'] -or $null -eq $config.OUs) {
+    $config | Add-Member -NotePropertyName 'OUs' -NotePropertyValue @() -Force
 }
 
 function Save-Config {
