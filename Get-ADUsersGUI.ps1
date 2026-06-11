@@ -52,7 +52,7 @@ public class OUItem : INotifyPropertyChanged {
 [xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AD User Viewer" Height="620" Width="1150" MinHeight="400" MinWidth="750"
+        Title="AD User Viewer" Height="620" Width="1250" MinHeight="400" MinWidth="750"
         WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13">
     <Window.Resources>
         <Style TargetType="Button">
